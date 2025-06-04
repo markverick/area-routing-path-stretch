@@ -190,17 +190,21 @@ Stat getEqualPathStat (int curX, int curY) {
 		if (curX > dstX) {
 			upDist = curX - dstX;
 			downDist = areaHeight == gridHeight? dstX + gridHeight - curX : INF; // cannot go if not stripe
-		} else {
+		} else if (curX < dstX) {
 			upDist = areaHeight == gridHeight? curX + gridHeight - dstX : INF; // cannot go if not stripe
 			downDist = dstX - curX;
+		} else {
+			upDist = downDist = 0;
 		}
 		// Horizontal
 		if (curY > dstY) {
 			leftDist = curY - dstY;
 			rightDist = areaWidth == gridWidth? dstY + gridWidth - curY : INF; // cannot go if not stripe
-		} else {
+		} else if (curY < dstY) {
 			leftDist = areaWidth == gridWidth? curY + gridWidth - dstY : INF; // cannot go if not stripe
 			rightDist = dstY - curY;
+		} else {
+			leftDist = rightDist = 0;
 		}
 
 		// Direction(s) to go
@@ -310,7 +314,6 @@ Stat getEqualPathStat (int curX, int curY) {
 		} else {
 			tmp = getEqualPathStat(nextX, nextY) + make_pair(dist, abs(deltaY));
 			stats.emplace_back(tmp);
-			dp[nextX][nextY] = tmp;
 		}
 	}
 	return dp[curX][curY] = aggregateStats(stats);
