@@ -10,57 +10,108 @@ int gridHeight, gridWidth, areaHeight, areaWidth;
 int srcX, srcY, dstX, dstY;
 int dstAX, dstAY;
 const int INF = 1000000000;
+const int E6 = 1000000;
 class Stat {
 private:
+	double m_count;     // count can overflow
 	double m_min;
 	double m_max;
 	double m_avg;
-	int m_count;
+	double m_avg_hop;
+	double m_min_hop;
+	double m_max_hop;
 
 public:
-	Stat() : m_min(-1), m_max(-1), m_avg(-1), m_count(-1) {}
+	Stat()
+		: m_count(-1), m_min(-1), m_max(-1), m_avg(-1),
+		  m_avg_hop(-1), m_min_hop(-1), m_max_hop(-1) {}
 
-	Stat(double min_value, double max_value, double avg_value, int count)
-		: m_min(min_value), m_max(max_value), m_avg(avg_value), m_count(count) {}
+	Stat(double count, double min_value, double max_value, double avg_value,
+	     double avg_hop, double min_hop, double max_hop)
+		: m_count(count), m_min(min_value), m_max(max_value), m_avg(avg_value),
+		  m_avg_hop(avg_hop), m_min_hop(min_hop), m_max_hop(max_hop) {}
 
-	double GetMin() const { return m_min; }
-	double GetMax() const { return m_max; }
-	double GetAvg() const { return m_avg; }
-	int GetCount() const { return m_count; }
+	// Getters
+	double GetCount()   const { return m_count; }
+	double GetMin()     const { return m_min; }
+	double GetMax()     const { return m_max; }
+	double GetAvg()     const { return m_avg; }
+	double GetAvgHop()  const { return m_avg_hop; }
+	double GetMinHop()  const { return m_min_hop; }
+	double GetMaxHop()  const { return m_max_hop; }
 
 	void Clear() {
-		m_min = m_max = m_avg = -1;
 		m_count = -1;
+		m_min = m_max = m_avg = -1;
+		m_avg_hop = m_min_hop = m_max_hop = -1;
 	}
 
 	void Print() const {
 		std::cout << std::fixed << std::setprecision(2);
 		std::cout << "Statistics Summary:\n";
-		std::cout << "  Min:   " << m_min   << "\n";
-		std::cout << "  Max:   " << m_max   << "\n";
-		std::cout << "  Avg:   " << m_avg   << "\n";
-		std::cout << "  Count: " << m_count << "\n";
+		std::cout << "  Count:     " << m_count << "\n";
+		std::cout << "  Min:       " << m_min << "\n";
+		std::cout << "  Max:       " << m_max << "\n";
+		std::cout << "  Avg:       " << m_avg << "\n";
+		std::cout << "  Avg Hop:   " << m_avg_hop << "\n";
+		std::cout << "  Min Hop:   " << m_min_hop << "\n";
+		std::cout << "  Max Hop:   " << m_max_hop << "\n";
 	}
 
-	Stat operator+(double value) const {
-	return Stat(m_min + value, m_max + value, m_avg + value, m_count);
-}
+	// Shift values by (distance, hop)
+	Stat operator+(std::pair<double, double> pair) const {
+		double dist = pair.first;
+		double hop = pair.second;
+		return Stat(m_count,
+		            m_min + dist, m_max + dist, m_avg + dist,
+		            m_avg_hop + hop, m_min_hop + hop, m_max_hop + hop);
+	}
+
+	bool operator<(const Stat& other) const {
+		return m_avg < other.m_avg;
+	}
+
+	bool operator==(const Stat& other) const {
+		return m_count == other.m_count &&
+		       m_min == other.m_min &&
+		       m_max == other.m_max &&
+		       m_avg == other.m_avg &&
+		       m_avg_hop == other.m_avg_hop &&
+		       m_min_hop == other.m_min_hop &&
+		       m_max_hop == other.m_max_hop;
+	}
 };
 
 Stat dp[1600][1600];
 
-Stat aggregateStats (std::vector<Stat> stats) {
+Stat aggregateStats(const std::vector<Stat>& stats) {
 	double mn = INF;
 	double mx = 0;
-	int count = 0;
+	double hopMn = INF;
+	double hopMx = 0;
+	double count = 0;
 	double sum = 0;
-	for (auto stat : stats) {
-		count += stat.GetCount();
-		mn = min(mn, stat.GetMin());
-		mx = max(mx, stat.GetMax());
-		sum += stat.GetAvg() * stat.GetCount();
+	double hopSum = 0;
+
+	for (const auto& stat : stats) {
+		double c = stat.GetCount();
+		if (c <= 0) continue;
+
+		count += c;
+		mn = std::min(mn, stat.GetMin());
+		mx = std::max(mx, stat.GetMax());
+		hopMn = std::min(hopMn, stat.GetMinHop());
+		hopMx = std::max(hopMx, stat.GetMaxHop());
+		sum += stat.GetAvg() * c;
+		hopSum += stat.GetAvgHop() * c;
 	}
-	return Stat(mn, mx, sum / count, count);
+
+	if (count == 0)
+		return Stat(0, 0, 0, 0, 0, 0, 0); // or return a sentinel Stat
+
+	double avg = sum / count;
+	double avg_hop = hopSum / count;
+	return Stat(count, mn, mx, avg, avg_hop, hopMn, hopMx);
 }
 
 int xBound(int x) {
@@ -88,6 +139,9 @@ double getDistance(int curX, int curY, int dstX, int dstY) {
 	}
 	int a,b,i;
 	double sm = 0;
+	if (curX == dstX && curY == dstY) {
+		return 0;
+	}
 	// Vertical Distance
 	if (curY == dstY) {
 		a = min(curX, dstX);
@@ -113,8 +167,7 @@ double getDistance(int curX, int curY, int dstX, int dstY) {
 Stat getEqualPathStat (int curX, int curY) {
 	// Base Case
 	if (curX == dstX && curY == dstY) {
-		cout << "Base case" << std::endl;
-		return Stat (0, 0, 0, 1);
+		return Stat (1, 0, 0, 0, 0, 0, 0);
 	}
 
 	// Memorized
@@ -168,44 +221,65 @@ Stat getEqualPathStat (int curX, int curY) {
 	} else {
 		// Cross Area
 		int leftDist, rightDist, upDist, downDist;
+		int leftHop, rightHop, upHop, downHop;
+		upHop = curX % areaHeight;
+		if (curAX < gridHeight / areaHeight) {
+			downHop = areaHeight - upHop - 1;
+		} else {
+			// Remainder area
+			downHop = gridHeight % areaHeight - upHop - 1;
+		}
+		leftHop = curY % areaWidth;
+		if (curAY < gridWidth / areaWidth) {
+			rightHop = areaWidth - leftHop - 1;
+		} else {
+			rightHop = gridHeight % areaHeight - leftHop - 1;
+		}
+		// cout << upHop << "," << downHop << "," << leftHop << "," << rightHop << endl;
 		// Vertical
 		if (curAX > dstAX) {
-			upDist = curAX - dstAX;
-			downDist = dstAX + gridHeight - curAX;
+			upDist = (curAX - dstAX) * areaHeight + upHop;
+			downDist = (dstAX + gridHeight - curAX) * areaHeight + downHop;
+		} else if (curAX < dstAX) {
+			upDist = (curAX + gridHeight - dstAX) * areaHeight + upHop;
+			downDist = (dstAX - curAX) * areaHeight + downHop;
 		} else {
-			upDist = curAX + gridHeight - dstAX;
-			downDist = dstAX - curAX;
+			upDist = 0;
+			downDist = 0;
 		}
 		// Horizontal
 		if (curAY > dstAY) {
-			leftDist = curAY - dstAY;
-			rightDist = dstAY + gridWidth - curAY;
+			leftDist = (curAY - dstAY) * areaWidth + leftHop;
+			rightDist = (dstAY + gridWidth - curAY) * areaWidth + rightHop;
+		} else if (curAY < dstAY) {
+			leftDist = (curAY + gridWidth - dstAY) * areaWidth + leftHop;
+			rightDist = (dstAY - curAY) * areaWidth + rightHop;
 		} else {
-			leftDist = curAY + gridWidth - dstAY;
-			rightDist = dstAY - curAY;
+			leftDist = 0;
+			rightDist = 0;
 		}
 		// Direction(s) to go
 		// Vertical
 		double dist;
 		int hop;
 		if (downDist > 0 && downDist <= upDist) {
-			hop = areaHeight - curX % areaHeight;
+			hop = downHop + 1;
 			dist = getDistance(curX, curY, xBound(curX + hop), curY);
 			dx.emplace_back(hop, dist); // Beeline to the next area
 		}
 		if (upDist > 0 && upDist <= downDist) {
-			hop = -1 * (curX % areaHeight + 1);
+			hop = -upHop - 1;
 			dist = getDistance(curX, curY, xBound(curX + hop), curY);
 			dx.emplace_back(hop, dist); // Beeline to the next area
 		}
 		// Horizontal
 		if (rightDist > 0 && rightDist <= leftDist) {
-			hop = areaWidth - curY % areaWidth;
+			hop = rightHop + 1;
 			dist = getDistance(curX, curY, curX, yBound(curY + hop));
 			dy.emplace_back(hop, dist); // Beeline to the next area
 		}
 		if (leftDist > 0 && leftDist <= rightDist) {
-			hop = -1 * (curY % areaWidth + 1);
+			hop = -leftHop - 1;
 			dist = getDistance(curX, curY, curX, yBound(curY + hop));
 			dy.emplace_back(hop, dist); // Beeline to the next area
 		}
@@ -221,9 +295,9 @@ Stat getEqualPathStat (int curX, int curY) {
 		nextX = xBound(curX + deltaX);
 		nextY = curY;
 		if (dp[nextX][nextY].GetMin() != -1) {
-			stats.emplace_back(dp[nextX][nextY] + dist);
+			stats.emplace_back(dp[nextX][nextY] + make_pair(dist, abs(deltaX)));
 		} else {
-			tmp = getEqualPathStat(nextX, nextY) + dist;
+			tmp = getEqualPathStat(nextX, nextY) + make_pair(dist, abs(deltaX));
 			stats.emplace_back(tmp);
 			dp[nextX][nextY] = tmp;
 		}
@@ -232,14 +306,100 @@ Stat getEqualPathStat (int curX, int curY) {
 		nextX = curX;
 		nextY = yBound(curY + deltaY);
 		if (dp[nextX][nextY].GetMin() != -1) {
-			stats.emplace_back(dp[nextX][nextY] + dist);
+			stats.emplace_back(dp[nextX][nextY] + make_pair(dist, abs(deltaY)));
 		} else {
-			tmp = getEqualPathStat(nextX, nextY) + dist;
+			tmp = getEqualPathStat(nextX, nextY) + make_pair(dist, abs(deltaY));
 			stats.emplace_back(tmp);
 			dp[nextX][nextY] = tmp;
 		}
 	}
 	return dp[curX][curY] = aggregateStats(stats);
+}
+
+int getMinHopCount(int sx, int sy, int dx, int dy) {
+	// Compute horizontal (x-axis) distance with wrapping
+    int dx1 = abs(dx - sx);
+    int dx2 = gridHeight - dx1;
+    int minDx = std::min(dx1, dx2);
+
+    // Compute vertical (y-axis) distance with wrapping
+    int dy1 = abs(dy - sy);
+    int dy2 = gridWidth - dy1;
+    int minDy = std::min(dy1, dy2);
+
+    // Total hops is sum of min distance in each dimension
+    return minDx + minDy;
+}
+
+Stat getStatOnePair (int sx, int sy, int dx, int dy) {
+	srcX = sx;
+	srcY = sy;
+	dstX = dx;
+	dstY = dy;
+	// Area
+	dstAX = dstX / areaHeight;
+	dstAY = dstY / areaWidth;
+	int i,j;
+	for (i = 0; i < gridHeight; i++) {
+		for (j = 0; j < gridWidth; j++) {
+			dp[i][j].Clear();
+		}
+	}
+	// cout << srcX << "," << srcY << " -> " << dstX << "," << dstY << endl;
+	// cout << srcX / areaHeight << "," << srcY / areaWidth << " -> " << dstX / areaHeight << "," << dstY / areaWidth<< endl;
+	auto stat = getEqualPathStat (srcX, srcY);
+	// stat.Print();
+	return stat;
+}
+int getMinHopCount(int src, int dst) {
+	return getMinHopCount (src / gridWidth, src % gridWidth, dst / gridWidth, dst % gridWidth);
+}
+
+Stat getStatOnePair (int src, int dst) {
+	return getStatOnePair (src / gridWidth, src % gridWidth, dst / gridWidth, dst % gridWidth);
+}
+
+void computeStatsRandomPairs(int n, string outputFileName) {
+	srand(2025);
+	vector<tuple<int, int, int, Stat> > stats;
+	for (int i = 0; i < n; i++) {
+		int node1 = rand() % (gridHeight * gridWidth);
+		int node2 = rand() % (gridHeight * gridWidth - 1);
+		if (node2 >= node1) node2++;
+		// cout << "Nodes [" << node1 << "," << node2 << "]" << endl;
+		auto hop = getMinHopCount(node1, node2);
+		auto stat = getStatOnePair(node1, node2);
+		stats.emplace_back(hop, node1, node2, stat);
+	}
+	sort(stats.begin(), stats.end());
+	std::ofstream outfile(outputFileName);
+	if (!outfile) {
+        std::cerr << "Failed to open file.\n";
+        return;
+    }
+	outfile << "hop_count,src,dst,min,avg,max,path_count,avg_hop,min_hop,max_hop" << std::endl;
+
+	for (auto& [hop, node1, node2, stat] : stats) {
+		outfile << hop << ","
+				<< node1 << ","
+				<< node2 << ","
+				<< stat.GetMin() / E6 << ","
+				<< stat.GetAvg() / E6 << ","
+				<< stat.GetMax() / E6 << ","
+				<< stat.GetCount() << ","
+				<< stat.GetAvgHop() << ","
+				<< stat.GetMinHop() << ","
+				<< stat.GetMaxHop() << std::endl;
+
+		// Optional debug print
+		// std::cout << "  [" << hop << "] "
+		// 		<< stat.GetMin() / E6 << " <- "
+		// 		<< stat.GetAvg() / E6 << " -> "
+		// 		<< stat.GetMax() / E6
+		// 		<< " (hops: " << stat.GetMinHop()
+		// 		<< " <- " << stat.GetAvgHop()
+		// 		<< " -> " << stat.GetMaxHop() << ")\n";
+	}
 }
 
 int main () {
@@ -249,31 +409,30 @@ int main () {
 
 	gridHeight = 72;
 	gridWidth = 22;
-	areaHeight = 8;
-	areaWidth = 11;
 
-	for (i=0;i<n;i++) {
-		scanf("%d %d %d",&ia,&ib,&ic);
-		adj[ia][ib]=ic;
-		adj[ib][ia]=ic;
-	}
-
-	srcX = 0;
-	srcY = 0;
-	dstX = 2;
-	dstY = 2;
-
-	// Area
-	dstAX = dstX / areaHeight;
-	dstAY = dstY / areaWidth;
-
-	for (i = 0; i < gridHeight; i++) {
-		for (j = 0; j < gridWidth; j++) {
-			dp[i][j].Clear();
+	vector<int> heightCandidates = {72, 36, 18, 8, 4, 2};
+	vector<int> widthCandidates = {22, 11, 4};
+	vector<int> areaHeights;
+	vector<int> areaWidths;
+	for (auto h : heightCandidates) {
+		for (auto w : widthCandidates) {
+			areaHeights.emplace_back(h);
+			areaWidths.emplace_back(w);
 		}
 	}
-	auto stat = getEqualPathStat (srcX, srcY);
-	stat.Print();
+
+	for (i=0;i<areaHeights.size();i++) {
+		areaHeight = areaHeights[i];
+		areaWidth = areaWidths[i];
+		for (j=0;j<n;j++) {
+			scanf("%d %d %d",&ia,&ib,&ic);
+			adj[ia][ib]=ic;
+			adj[ib][ia]=ic;
+		}
+
+		string outputFile = "results/" + to_string(areaHeight) + "x" + to_string(areaWidth) + ".csv";
+		computeStatsRandomPairs(100, outputFile);
+	}
 	return 0;
 }
 
