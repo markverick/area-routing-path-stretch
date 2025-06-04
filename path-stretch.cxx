@@ -303,7 +303,6 @@ Stat getEqualPathStat (int curX, int curY) {
 		} else {
 			tmp = getEqualPathStat(nextX, nextY) + make_pair(dist, abs(deltaX));
 			stats.emplace_back(tmp);
-			dp[nextX][nextY] = tmp;
 		}
 	}
 	for (auto& [deltaY, dist] : dy) {
