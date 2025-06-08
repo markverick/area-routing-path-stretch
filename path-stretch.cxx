@@ -6,9 +6,10 @@ using namespace std;
 int adj[1600][1600];
 // int dx[4] = {0, 1, 0, -1};
 // int dy[4] = {1, 0, -1, 0};
-int gridHeight, gridWidth, areaHeight, areaWidth;
+int gridHeight, gridWidth, areaHeight, areaWidth, numAreaHeight, numAreaWidth;
 int srcX, srcY, dstX, dstY;
 int dstAX, dstAY;
+int areaSize;
 const int INF = 1000000000;
 const int E6 = 1000000;
 class Stat {
@@ -152,6 +153,7 @@ double getDistance(int curX, int curY, int dstX, int dstY) {
 			sm += adj[cur][dst];
 		}
 	}
+	// Horizontal Distance
 	if (curX == dstX) {
 		a = min(curY, dstY);
 		b = max(curY, dstY);
@@ -175,6 +177,7 @@ Stat getEqualPathStat (int curX, int curY) {
 		return dp[curX][curY];
 	}
 	// cout << "curX: " << curX << ", curY: " << curY << endl;
+	// cout << "areaHeight: " << areaHeight << ", areaWidth: " << areaWidth << endl;
 
 	// Get current area
 	int curAX = curX / areaHeight;
@@ -237,27 +240,28 @@ Stat getEqualPathStat (int curX, int curY) {
 		if (curAY < gridWidth / areaWidth) {
 			rightHop = areaWidth - leftHop - 1;
 		} else {
-			rightHop = gridHeight % areaHeight - leftHop - 1;
+			rightHop = gridWidth % areaWidth - leftHop - 1;
 		}
 		// cout << upHop << "," << downHop << "," << leftHop << "," << rightHop << endl;
+		// cout << numAreaHeight << "," << numAreaWidth << endl;
 		// Vertical
 		if (curAX > dstAX) {
-			upDist = (curAX - dstAX) * areaHeight + upHop;
-			downDist = (dstAX + gridHeight - curAX) * areaHeight + downHop;
+			upDist = (curAX - dstAX) * areaSize + upHop;
+			downDist = (dstAX + numAreaHeight - curAX) * areaSize + downHop;
 		} else if (curAX < dstAX) {
-			upDist = (curAX + gridHeight - dstAX) * areaHeight + upHop;
-			downDist = (dstAX - curAX) * areaHeight + downHop;
+			upDist = (curAX + numAreaHeight - dstAX) * areaSize + upHop;
+			downDist = (dstAX - curAX) * areaSize + downHop;
 		} else {
 			upDist = 0;
 			downDist = 0;
 		}
 		// Horizontal
 		if (curAY > dstAY) {
-			leftDist = (curAY - dstAY) * areaWidth + leftHop;
-			rightDist = (dstAY + gridWidth - curAY) * areaWidth + rightHop;
+			leftDist = (curAY - dstAY) * areaSize + leftHop;
+			rightDist = (dstAY + numAreaWidth - curAY) * areaSize + rightHop;
 		} else if (curAY < dstAY) {
-			leftDist = (curAY + gridWidth - dstAY) * areaWidth + leftHop;
-			rightDist = (dstAY - curAY) * areaWidth + rightHop;
+			leftDist = (curAY + numAreaWidth - dstAY) * areaSize + leftHop;
+			rightDist = (dstAY - curAY) * areaSize + rightHop;
 		} else {
 			leftDist = 0;
 			rightDist = 0;
@@ -347,6 +351,9 @@ Stat getStatOnePair (int sx, int sy, int dx, int dy) {
 			dp[i][j].Clear();
 		}
 	}
+	areaSize = areaHeight * areaWidth;
+	numAreaHeight = (gridHeight - 1) / areaHeight + 1;
+	numAreaWidth = (gridWidth - 1) / areaWidth + 1;
 	// cout << srcX << "," << srcY << " -> " << dstX << "," << dstY << endl;
 	// cout << srcX / areaHeight << "," << srcY / areaWidth << " -> " << dstX / areaHeight << "," << dstY / areaWidth<< endl;
 	auto stat = getEqualPathStat (srcX, srcY);
