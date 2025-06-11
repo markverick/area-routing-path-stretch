@@ -133,34 +133,36 @@ int toNodeId(int x, int y) {
 	return x * gridWidth + y;
 }
 
-double getDistance(int curX, int curY, int dstX, int dstY) {
-	if (curX != dstX && curY != dstY) {
+double getDistance(int curX, int curY, int dx, int dy) {
+	if (dx != 0 && dy != 0) {
 		cout << "Only one-axis-distance is supported" << std::endl;
 		return 0;
 	}
-	int a,b,i;
+	int i,ax,bx,ay,by;
 	double sm = 0;
-	if (curX == dstX && curY == dstY) {
-		return 0;
-	}
-	// Vertical Distance
-	if (curY == dstY) {
-		a = min(curX, dstX);
-		b = max(curX, dstX);
-		for (i = a; i < b; i++) {
-			int cur = i * gridWidth + curY;
-			int dst = (i + 1) * gridWidth + dstY;
-			sm += adj[cur][dst];
+	if (dx > 0) {
+		for (i = curX; i < curX + dx; i++) {
+			ax = xBound(i);
+			bx = xBound(i+1);
+			sm += adj[toNodeId(ax, curY)][toNodeId(bx, curY)];
 		}
-	}
-	// Horizontal Distance
-	if (curX == dstX) {
-		a = min(curY, dstY);
-		b = max(curY, dstY);
-		for (i = a; i < b; i++) {
-			int cur = curX * gridWidth + i;
-			int dst = dstX * gridWidth + i + 1;
-			sm += adj[cur][dst];
+	} else if(dx < 0) {
+		for (i = curX; i > curX + dx; i--) {
+			ax = xBound(i);
+			bx = xBound(i-1);
+			sm += adj[toNodeId(ax, curY)][toNodeId(bx, curY)];
+		}
+	}else if (dy > 0) {
+		for (i = curY; i < curY + dy; i++) {
+			ay = yBound(i);
+			by = yBound(i+1);
+			sm += adj[toNodeId(curX, ay)][toNodeId(curX, by)];
+		}
+	} else if(dy < 0) {
+		for (i = curY; i > curY + dy; i--) {
+			ay = yBound(i);
+			by = yBound(i-1);
+			sm += adj[toNodeId(curX, ay)][toNodeId(curX, by)];
 		}
 	}
 	return sm;
@@ -272,23 +274,23 @@ Stat getEqualPathStat (int curX, int curY) {
 		int hop;
 		if (downDist > 0 && downDist <= upDist) {
 			hop = downHop + 1;
-			dist = getDistance(curX, curY, xBound(curX + hop), curY);
+			dist = getDistance(curX, curY, hop, 0);
 			dx.emplace_back(hop, dist); // Beeline to the next area
 		}
 		if (upDist > 0 && upDist <= downDist) {
 			hop = -upHop - 1;
-			dist = getDistance(curX, curY, xBound(curX + hop), curY);
+			dist = getDistance(curX, curY, hop, 0);
 			dx.emplace_back(hop, dist); // Beeline to the next area
 		}
 		// Horizontal
 		if (rightDist > 0 && rightDist <= leftDist) {
 			hop = rightHop + 1;
-			dist = getDistance(curX, curY, curX, yBound(curY + hop));
+			dist = getDistance(curX, curY, 0, hop);
 			dy.emplace_back(hop, dist); // Beeline to the next area
 		}
 		if (leftDist > 0 && leftDist <= rightDist) {
 			hop = -leftHop - 1;
-			dist = getDistance(curX, curY, curX, yBound(curY + hop));
+			dist = getDistance(curX, curY, 0, hop);
 			dy.emplace_back(hop, dist); // Beeline to the next area
 		}
 	}
